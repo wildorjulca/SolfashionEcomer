@@ -23,3 +23,12 @@ While NextMerce Pro features advanced functionalities, seamless integration, and
 #### [🚀 Live Demo](https://demo.nextmerce.com/)
 
 #### [🌐 Visit Website](https://nextmerce.com/)
+
+
+<!--  Actualizazion -->
+
+### Cree un seed con  y un tsconfig.json  para eejecutar un (npm run seed)  y poblar mi base de datos
+
+##  Migre a primsa para las consultas
+   01- npm install prisma --save-dev 
+    

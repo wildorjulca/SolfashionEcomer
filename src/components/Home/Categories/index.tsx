@@ -70,10 +70,10 @@ const Categories = () => {
                     </clipPath>
                   </defs>
                 </svg>
-                Categories
+                Categorías
               </span>
               <h2 className="font-semibold text-xl xl:text-heading-5 text-dark">
-                Browse by Category
+                Buscar por categoría
               </h2>
             </div>
 
@@ -95,7 +95,6 @@ const Categories = () => {
                   />
                 </svg>
               </button>
-
               <button onClick={handleNext} className="swiper-button-next">
                 <svg
                   className="fill-current"
