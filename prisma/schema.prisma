@@ -1,12 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -14,14 +7,447 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Estado {
-  Activo
-  Inactivo
+// ======================== JERARQUÍA DE CATEGORÍAS ========================
+
+model Genero {
+  id         Int         @id @default(autoincrement())
+  nombre     String      @unique @db.VarChar(20)
+  // Ejemplos: "Hombre", "Mujer", "Niño", "Niña", "Unisex"
+  slug       String      @unique @db.VarChar(20)
+  // Versión para URL: "hombre", "mujer", etc.
+  imagen     String?     @db.VarChar(255)
+  // URL de imagen representativa del género
+  estado  Boolean?    @default(false)
+  // Si aparece en el menú principal
+  categorias Categoria[]
+  productos  Producto[]
+  creado_en  DateTime?   @default(now()) @db.DateTime(0)
+  // Fecha de creación
 }
 
 model Categoria {
-  id     String @id @default(uuid())
-  title  String @db.VarChar(30)
-  img    String @db.VarChar(255)
-  Estado Estado @default(Activo)
+  id            Int            @id @default(autoincrement())
+  nombre        String         @unique @db.VarChar(50)
+  // Ejemplos: "Ropa", "Calzado", "Accesorios"
+  slug          String         @unique @db.VarChar(50)
+  // URL amigable: "ropa", "calzado"
+  descripcion   String?        @db.Text
+  // Descripción para SEO
+  imagen        String?        @db.VarChar(255)
+  // Imagen destacada
+  genero        Genero         @relation(fields: [generoId], references: [id])
+  generoId      Int
+  subcategorias Subcategoria[]
+  productos     Producto[]
+  destacado     Boolean?       @default(false)
+  creado_en     DateTime?      @default(now()) @db.DateTime(0)
+}
+
+model Subcategoria {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique @db.VarChar(50)
+  // Ejemplos: "Polos", "Jeans", "Zapatillas"
+  slug        String     @unique @db.VarChar(50)
+  imagen      String?    @db.VarChar(255)
+  categoria   Categoria  @relation(fields: [categoriaId], references: [id])
+  categoriaId Int
+  productos   Producto[]
+}
+
+// ======================== PRODUCTOS Y VARIANTES ========================
+
+model Producto {
+  id                   Int           @id @default(autoincrement())
+  nombre               String        @db.VarChar(100)
+  // Nombre comercial: "Polo manga corta algodón"
+  slug                 String        @unique @db.VarChar(100)
+  referencia           String?       @db.VarChar(50)
+  // Código interno: "PROD-2024-001"
+  descripcion          String?       @db.Text
+  // Descripción larga con HTML
+  descripcion_corta    String?       @db.VarChar(255)
+  // Resumen para cards
+  precio               Decimal       @db.Decimal(10, 2)
+  precio_descuento     Decimal?      @db.Decimal(10, 2)
+  porcentaje_descuento Int?          @default(0)
+  // 10, 20, etc. (para mostrar el %)
+  en_oferta            Boolean?      @default(false)
+  // Filtro rápido
+  es_nuevo             Boolean?      @default(true)
+  // Destacar productos nuevos
+  es_destacado         Boolean?      @default(false)
+  // Productos seleccionados
+  marca                Marca?        @relation(fields: [marcaId], references: [id])
+  marcaId              Int?
+  genero               Genero        @relation(fields: [generoId], references: [id])
+  generoId             Int
+  categoria            Categoria     @relation(fields: [categoriaId], references: [id])
+  categoriaId          Int
+  subcategoria         Subcategoria? @relation(fields: [subcategoriaId], references: [id])
+  subcategoriaId       Int?
+  tags                   String?       @db.VarChar(255)
+  // Etiquetas separadas por comas: "verano,algodon,tendencia"
+  rating_promedio      Float?        @default(0.0)
+  // Calculado de las reseñas (0-5)
+  total_vendidos       Int?          @default(0)
+  // Contador de ventas
+  creado_en            DateTime?     @default(now()) @db.DateTime(0)
+  actualizado_en       DateTime?     @updatedAt @db.DateTime(0)
+
+  // Relaciones
+  combinaciones   CombinacionProducto[]
+  imagenes        Imagen[]
+  atributos       AtributoProducto[]
+  resenas         Resena[]
+  detalles_pedido DetallePedido[]
+  Carrito         Carrito[]
+
+  // Índices
+  @@index([slug])
+  @@index([marcaId])
+  @@index([generoId])
+  @@index([categoriaId])
+  @@index([subcategoriaId])
+}
+
+model Marca {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique @db.VarChar(50)
+  slug      String     @unique @db.VarChar(50)
+  imagen    String?    @db.VarChar(255)
+  // Logo de la marca
+  estado Boolean?   @default(false)
+  // Marcas principales
+  productos Producto[]
+  creado_en DateTime?  @default(now()) @db.DateTime(0)
+}
+
+model CombinacionProducto {
+  id              Int             @id @default(autoincrement())
+  producto        Producto        @relation(fields: [productoId], references: [id])
+  productoId      Int
+  color           Color?          @relation(fields: [colorId], references: [id])
+  colorId         Int?
+  talla           Talla?          @relation(fields: [tallaId], references: [id])
+  tallaId         Int?
+  precio          Decimal?        @db.Decimal(10, 2)
+  // Sobreescribe precio general si existe
+  cantidad_stock  Int?            @default(0)
+  sku             String          @unique @db.VarChar(100)
+  // Código único: "POLO-NEGRO-M-001"
+  codigo_barras   String?         @db.VarChar(50)
+  peso            Decimal?        @db.Decimal(10, 2)
+  // En kilogramos
+  ancho           Decimal?        @db.Decimal(10, 2)
+  alto            Decimal?        @db.Decimal(10, 2)
+  profundidad     Decimal?        @db.Decimal(10, 2)
+  // Dimensiones para envíos
+  imagenes        Imagen[]
+  detalles_pedido DetallePedido[]
+  Carrito         Carrito[]
+
+  @@index([productoId])
+  @@index([colorId])
+  @@index([tallaId])
+  @@index([sku])
+}
+
+model Color {
+  id         Int                   @id @default(autoincrement())
+  nombre     String                @unique @db.VarChar(50)
+  // "Negro", "Blanco hueso"
+  slug       String                @unique @db.VarChar(50)
+  codigo_hex String?               @db.VarChar(7)
+  // "#000000" (opcional)
+  productos  CombinacionProducto[]
+}
+
+model Talla {
+  id          Int                   @id @default(autoincrement())
+  nombre      String                @db.VarChar(50)
+  // Nombre descriptivo: "Small", "40 EU"
+  valor       String                @db.VarChar(20)
+  // Valor real: "S", "40"
+  tipo        TipoTalla             @relation(fields: [tipoTallaId], references: [id])
+  tipoTallaId Int
+  orden       Int?                  @default(0)
+  productos   CombinacionProducto[]
+
+  @@unique([tipoTallaId, valor])
+}
+
+model TipoTalla {
+  id     Int     @id @default(autoincrement())
+  nombre String  @db.VarChar(100)
+  // "Ropa", "Calzado", "Accesorios"
+  slug   String  @unique @db.VarChar(100)
+  tallas Talla[]
+}
+
+// ======================== MEDIA ========================
+
+model Imagen {
+  id            Int                  @id @default(autoincrement())
+  producto      Producto             @relation(fields: [productoId], references: [id])
+  productoId    Int
+  combinacion   CombinacionProducto? @relation(fields: [combinacionId], references: [id])
+  combinacionId Int?
+  url_imagen    String               @db.VarChar(255)
+  // "/uploads/productos/polo-negro-1.jpg"
+  orden         Int?                 @default(0)
+  es_principal  Boolean?             @default(false)
+  // Imagen destacada
+  creado_en     DateTime?            @default(now()) @db.DateTime(0)
+
+  @@index([productoId])
+  @@index([combinacionId])
+}
+
+// ======================== ATRIBUTOS Y ESPECIFICACIONES ========================
+
+model AtributoProducto {
+  id                Int      @id @default(autoincrement())
+  producto          Producto @relation(fields: [productoId], references: [id])
+  productoId        Int
+  nombre            String   @db.VarChar(100)
+  // "Material", "Composición"
+  valor             String   @db.VarChar(255)
+  // "Algodón 95%, Elastano 5%"
+  orden             Int?     @default(0)
+  es_especificacion Boolean? @default(false)
+  // Para características técnicas
+
+  @@index([productoId])
+}
+
+// ======================== USUARIOS Y AUTENTICACIÓN ========================
+
+model Usuario {
+  id                 Int               @id @default(autoincrement())
+  nombre             String            @db.VarChar(100)
+  apellido           String            @db.VarChar(100)
+  correo             String            @unique @db.VarChar(100)
+  contrasena_hash    String            @db.VarChar(255)
+  // Hash bcrypt
+  telefono           String?           @db.VarChar(20)
+  avatar             String?           @db.VarChar(255)
+  // URL de imagen
+  verificado         Boolean?          @default(false)
+  // Confirmación de email
+  rol                Rol               @relation(fields: [rolId], references: [id])
+  rolId              Int
+  direcciones        Direccion[]
+  pedidos            Pedido[]
+  resenas            Resena[]
+  carrito            Carrito[]
+  creado_en          DateTime?         @default(now()) @db.DateTime(0)
+  actualizado_en     DateTime?         @updatedAt @db.DateTime(0)
+  token_recuperacion String?           @db.VarChar(255)
+  token_expiracion   DateTime?         @db.DateTime(0)
+  HistorialPedido    HistorialPedido[]
+
+  @@index([correo])
+  @@index([rolId])
+}
+
+model Rol {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique @db.VarChar(50)
+  // "Admin", "Cliente", "Vendedor"
+  nivel       Int       @default(1)
+  // 1=Cliente, 10=Admin
+  descripcion String?   @db.Text
+  usuarios    Usuario[]
+}
+
+model Direccion {
+  id            Int       @id @default(autoincrement())
+  usuario       Usuario   @relation(fields: [usuarioId], references: [id])
+  usuarioId     Int
+  alias         String    @db.VarChar(50)
+  // "Casa", "Oficina"
+  nombres       String    @db.VarChar(100)
+  apellidos     String    @db.VarChar(100)
+  direccion     String    @db.VarChar(255)
+  ciudad        String    @db.VarChar(100)
+  provincia     String    @db.VarChar(100)
+  codigo_postal String    @db.VarChar(20)
+  pais          String    @db.VarChar(100)
+  telefono      String    @db.VarChar(20)
+  es_principal  Boolean?  @default(false)
+  notas         String?   @db.VarChar(255)
+  // "Dejar con conserje"
+  creado_en     DateTime? @default(now()) @db.DateTime(0)
+  Pedido        Pedido[]
+
+  @@index([usuarioId])
+}
+
+// ======================== PEDIDOS Y PAGOS ========================
+
+model Pedido {
+  id            Int               @id @default(autoincrement())
+  codigo        String            @unique @db.VarChar(20)
+  // "PED-2024-0001"
+  usuario       Usuario           @relation(fields: [usuarioId], references: [id])
+  usuarioId     Int
+  direccion     Direccion         @relation(fields: [direccionId], references: [id])
+  direccionId   Int
+  metodo_pago   MetodoPago        @relation(fields: [metodoPagoId], references: [id])
+  metodoPagoId  Int
+  fecha_pedido  DateTime?         @default(now()) @db.DateTime(0)
+  fecha_envio   DateTime?         @db.DateTime(0)
+  fecha_entrega DateTime?         @db.DateTime(0)
+  subtotal      Decimal           @db.Decimal(12, 2)
+  envio         Decimal           @db.Decimal(10, 2)
+  descuento     Decimal?          @default(0.00) @db.Decimal(10, 2)
+  igv           Decimal           @db.Decimal(10, 2)
+  // Impuestos (18%)
+  monto_total   Decimal           @db.Decimal(12, 2)
+  estado        PedidoEstado
+  estado_pago   PedidoEstadoPago
+  tracking      String?           @db.VarChar(100)
+  // Código de seguimiento
+  notas         String?           @db.Text
+  // Notas del cliente
+  detalles      DetallePedido[]
+  transacciones TransaccionPago[]
+  historial     HistorialPedido[]
+  Resena        Resena[]
+
+  @@index([usuarioId])
+  @@index([direccionId])
+  @@index([metodoPagoId])
+  @@index([codigo])
+}
+
+model DetallePedido {
+  id                 Int                  @id @default(autoincrement())
+  pedido             Pedido               @relation(fields: [pedidoId], references: [id])
+  pedidoId           Int
+  producto           Producto             @relation(fields: [productoId], references: [id])
+  productoId         Int
+  combinacion        CombinacionProducto? @relation(fields: [combinacionId], references: [id])
+  combinacionId      Int?
+  cantidad           Int
+  precio_unitario    Decimal              @db.Decimal(10, 2)
+  // Precio en el momento de la compra
+  descuento_aplicado Decimal?             @default(0.00) @db.Decimal(10, 2)
+  subtotal           Decimal              @db.Decimal(10, 2)
+
+  @@index([pedidoId])
+  @@index([productoId])
+  @@index([combinacionId])
+}
+
+model MetodoPago {
+  id              Int               @id @default(autoincrement())
+  nombre          String            @unique @db.VarChar(100)
+  // "Visa", "PayPal", "Transferencia"
+  slug            String            @unique @db.VarChar(100)
+  descripcion     String?           @db.Text
+  icono           String?           @db.VarChar(255)
+  // Icono del método
+  activo          Boolean?          @default(true)
+  pedidos         Pedido[]
+  TransaccionPago TransaccionPago[]
+}
+
+model TransaccionPago {
+  id           Int        @id @default(autoincrement())
+  pedido       Pedido     @relation(fields: [pedidoId], references: [id])
+  pedidoId     Int
+  metodo_pago  MetodoPago @relation(fields: [metodoPagoId], references: [id])
+  metodoPagoId Int
+  codigo       String?    @db.VarChar(100)
+  // ID de transacción externa
+  monto        Decimal    @db.Decimal(10, 2)
+  estado       String     @db.VarChar(50)
+  // "completado", "pendiente", "fallido"
+  respuesta    String?    @db.Text
+  // Respuesta cruda del gateway
+  fecha        DateTime?  @default(now()) @db.DateTime(0)
+
+  @@index([pedidoId])
+  @@index([metodoPagoId])
+}
+
+model HistorialPedido {
+  id        Int       @id @default(autoincrement())
+  pedido    Pedido    @relation(fields: [pedidoId], references: [id])
+  pedidoId  Int
+  estado    String    @db.VarChar(50)
+  // "creado", "procesando", "enviado"
+  notas     String?   @db.Text
+  // "El cliente solicitó cambio de talla"
+  creado_en DateTime? @default(now()) @db.DateTime(0)
+  usuario   Usuario?  @relation(fields: [usuarioId], references: [id])
+  usuarioId Int?
+  // Staff que realizó el cambio
+
+  @@index([pedidoId])
+}
+
+// ======================== RESEÑAS Y VALORACIONES ========================
+
+model Resena {
+  id           Int       @id @default(autoincrement())
+  producto     Producto  @relation(fields: [productoId], references: [id])
+  productoId   Int
+  usuario      Usuario   @relation(fields: [usuarioId], references: [id])
+  usuarioId    Int
+  pedido       Pedido?   @relation(fields: [pedidoId], references: [id])
+  pedidoId     Int?
+  // Verificar que compró el producto
+  calificacion Int       @default(5)
+  // 1-5 estrellas
+  titulo       String?   @db.VarChar(100)
+  comentario   String?   @db.Text
+  respuesta    String?   @db.Text
+  // Respuesta del vendedor
+  aprobado     Boolean?  @default(false)
+  // Moderación
+  creado_en    DateTime? @default(now()) @db.DateTime(0)
+
+  @@index([productoId])
+  @@index([usuarioId])
+  @@index([pedidoId])
+}
+
+// ======================== CARRITO DE COMPRAS ========================
+
+model Carrito {
+  id             Int                  @id @default(autoincrement())
+  usuario        Usuario              @relation(fields: [usuarioId], references: [id])
+  usuarioId      Int
+  producto       Producto             @relation(fields: [productoId], references: [id])
+  productoId     Int
+  combinacion    CombinacionProducto? @relation(fields: [combinacionId], references: [id])
+  combinacionId  Int?
+  cantidad       Int                  @default(1)
+  creado_en      DateTime?            @default(now()) @db.DateTime(0)
+  actualizado_en DateTime?            @updatedAt @db.DateTime(0)
+
+  @@index([usuarioId])
+  @@index([productoId])
+  @@index([combinacionId])
+}
+
+// ======================== ENUMS (ESTADOS) ========================
+
+enum PedidoEstado {
+  PENDIENTE // Recién creado
+  PROCESANDO // En preparación
+  ENVIADO // En camino
+  ENTREGADO // Completado
+  CANCELADO // Por el cliente
+  DEVUELTO // Productos devueltos
+}
+
+enum PedidoEstadoPago {
+  PENDIENTE // Aún no pagado
+  COMPLETADO // Pago verificado
+  REEMBOLSADO // Dinero devuelto
+  RECHAZADO // Pago fallido
+  PARCIAL // Pago parcial
 }
